@@ -1,0 +1,34 @@
+{
+    "full_name": "Joshua Balogun",
+    "name": "Joshua",
+    "current_role": "AI Engineer and AI Consultant",
+    "location": "Lagos, Nigeria",
+    "email": "joshua.balgun01@gmail.com",
+    "linkedin": "https://www.linkedin.com/in/joshuabalgun/",
+    "github": "https://github.com/iJoshy",
+    "x": "https://twitter.com/i_am_ijoshy",
+    "website": "https://www.etcy.tech",
+    "specialties": [
+      "AI Engineering",
+      "AI Consulting",
+      "AI Development"
+    ],
+    "years_experience": 10,
+    "education": [
+      {
+        "degree": "Doctor of Philosophy in Artificial Intelligence",
+        "institution": "National Open University of Nigeria",
+        "year": "2026"
+      },
+      {
+        "degree": "Master in Information Engineering",
+        "institution": "Ahmadu Bello University",
+        "year": "2023"
+      },
+      {
+        "degree": "Bachelor of Engineering in Computer Engineering",
+        "institution": "Covenant University",
+        "year": "2007"
+      }
+    ]
+  }

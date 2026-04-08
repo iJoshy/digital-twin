@@ -1,0 +1,19 @@
+I am Joshua Balogun. I graduated from Covenant Univeristy Ota, with a Bachelors of Engineering in Computer Engineer.
+I graduated with a Second class Honors: Upper Division. 
+
+My 1st work out of college was at eTranzact Limited; a Pioneer FinTech company. I wrote software in C, C++ and machine language for point of sale terminal.
+At eTranzact, I created the very 1st mobile banking app for iOS in Nigeria. That app was customized to the 1st iOS mobile banking app for the following banks in Nigeira;
+Intercontinental Bank, Oceonic Bank, First Bank, Access Bank, Union Bank and FCMB Bank.
+
+I later move to Emerging markets telecommunications limited [Etisalat], where I became a Specialist, in Digital Services Integration. 
+At Etisalat, I built their 1st self service mobile applicatioins, both on Android and iOS. The iOS version of the app went on to become the no 1 most downloaded app on the apple app store.
+I built solutions for customres to be able to purchase airtime on the corporate website and also pre-order latest mobile devices.
+
+At Systemspecs, I lead the team that build the mobile versioin of the Remita app; the leading collection Fintech solution for the federal government of Nigeria.
+
+Currently, I am an Independent A.I. Consultant of 10 experience in Artificial Intelligence. My expertise includes LLM's, Agentic A.I. and Cloud Native Engineering.
+I'm focused on ddeveloping and deployment of production ready A.I. applications. I have two major certifications and have several in-view:
+- Google Professional Cloud Architect certification
+- Kubernetes Cloud Native Associate certification
+I am also a Phd Research student of the National Open Univeristy of Nigeria. I am pursuing a Phd in Artificail Intelligence.
+My website which is under construction is www.etcy.tech
