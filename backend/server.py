@@ -102,27 +102,6 @@ def send_email(body: str, recipient_email: str) -> Dict[str, Any]:
         return {"status": "error", "reason": str(e)}
 
 
-send_email_json = {
-    "name": "send_email",
-    "description": "Use this tool to send an HTML email to the user.",
-    "parameters": {
-        "type": "object",
-        "properties": {
-            "body": {
-                "type": "string",
-                "description": "The HTML body of the email."
-            },
-            "recipient_email": {
-                "type": "string",
-                "description": "The recipient email address."
-            },
-        },
-        "required": ["body", "recipient_email"],
-        "additionalProperties": False,
-    },
-}
-
-
 def push(text: str) -> Dict[str, Any]:
     token = os.getenv("PUSHOVER_TOKEN")
     user = os.getenv("PUSHOVER_USER")
@@ -209,7 +188,6 @@ record_unknown_question_json = {
 tool_schemas = [
     record_user_details_json,
     record_unknown_question_json,
-    send_email_json,
 ]
 
 bedrock_tools = [
@@ -226,7 +204,6 @@ bedrock_tools = [
 tool_handlers: Dict[str, Callable[..., Dict[str, Any]]] = {
     "record_user_details": record_user_details,
     "record_unknown_question": record_unknown_question,
-    "send_email": send_email,
 }
 
 
