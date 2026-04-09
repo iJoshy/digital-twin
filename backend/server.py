@@ -7,6 +7,7 @@ from typing import Optional, List, Dict, Any, Callable
 import json
 import uuid
 from datetime import datetime
+import re
 import boto3
 from botocore.exceptions import ClientError
 from context import prompt
@@ -101,6 +102,27 @@ def send_email(body: str, recipient_email: str) -> Dict[str, Any]:
         return {"status": "error", "reason": str(e)}
 
 
+send_email_json = {
+    "name": "send_email",
+    "description": "Use this tool to send an HTML email to the user.",
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "body": {
+                "type": "string",
+                "description": "The HTML body of the email."
+            },
+            "recipient_email": {
+                "type": "string",
+                "description": "The recipient email address."
+            },
+        },
+        "required": ["body", "recipient_email"],
+        "additionalProperties": False,
+    },
+}
+
+
 def push(text: str) -> Dict[str, Any]:
     token = os.getenv("PUSHOVER_TOKEN")
     user = os.getenv("PUSHOVER_USER")
@@ -187,6 +209,7 @@ record_unknown_question_json = {
 tool_schemas = [
     record_user_details_json,
     record_unknown_question_json,
+    send_email_json,
 ]
 
 bedrock_tools = [
@@ -203,6 +226,7 @@ bedrock_tools = [
 tool_handlers: Dict[str, Callable[..., Dict[str, Any]]] = {
     "record_user_details": record_user_details,
     "record_unknown_question": record_unknown_question,
+    "send_email": send_email,
 }
 
 
@@ -250,6 +274,15 @@ def save_conversation(session_id: str, messages: List[Dict]):
 def extract_text_from_content(content: List[Dict[str, Any]]) -> str:
     text_parts = [item["text"] for item in content if "text" in item]
     return "\n".join(part.strip() for part in text_parts if part and part.strip()).strip()
+
+
+def strip_thinking_blocks(text: str) -> str:
+    """Remove model reasoning blocks like <thinking>...</thinking> from visible output."""
+    if not text:
+        return ""
+
+    cleaned = re.sub(r"<thinking>.*?</thinking>", "", text, flags=re.IGNORECASE | re.DOTALL)
+    return cleaned.strip()
 
 
 def sanitize_content_blocks(content: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -319,6 +352,7 @@ def call_bedrock(conversation: List[Dict], user_message: str) -> str:
 
             if stop_reason != "tool_use":
                 final_text = extract_text_from_content(output_message.get("content", []))
+                final_text = strip_thinking_blocks(final_text)
                 return final_text or "I completed that action."
 
             sanitized_output_content = sanitize_content_blocks(output_message.get("content", []))

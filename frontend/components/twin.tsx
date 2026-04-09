@@ -10,6 +10,20 @@ interface Message {
     timestamp: Date;
 }
 
+function sanitizeAssistantContent(content: string): string {
+    if (!content) return '';
+
+    // Remove known hidden reasoning blocks.
+    let cleaned = content.replace(/<thinking>[\s\S]*?<\/thinking>/gi, '');
+    cleaned = cleaned.replace(/<analysis>[\s\S]*?<\/analysis>/gi, '');
+    cleaned = cleaned.replace(/<reasoning>[\s\S]*?<\/reasoning>/gi, '');
+
+    // Remove any stray opening/closing internal tags that may leak.
+    cleaned = cleaned.replace(/<\/?(thinking|analysis|reasoning)\b[^>]*>/gi, '');
+
+    return cleaned.trim();
+}
+
 export default function Twin() {
     const [messages, setMessages] = useState<Message[]>([]);
     const [input, setInput] = useState('');
@@ -63,7 +77,7 @@ export default function Twin() {
             const assistantMessage: Message = {
                 id: (Date.now() + 1).toString(),
                 role: 'assistant',
-                content: data.response,
+                content: sanitizeAssistantContent(data.response),
                 timestamp: new Date(),
             };
 
@@ -161,7 +175,11 @@ export default function Twin() {
                                     : 'bg-white border border-gray-200 text-gray-800'
                             }`}
                         >
-                            <p className="whitespace-pre-wrap">{message.content}</p>
+                            <p className="whitespace-pre-wrap">
+                                {message.role === 'assistant'
+                                    ? sanitizeAssistantContent(message.content)
+                                    : message.content}
+                            </p>
                             <p
                                 className={`text-xs mt-1 ${
                                     message.role === 'user' ? 'text-slate-300' : 'text-gray-500'
