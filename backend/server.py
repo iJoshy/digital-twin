@@ -12,7 +12,7 @@ import boto3
 from botocore.exceptions import ClientError
 from context import prompt
 import sendgrid
-from sendgrid.helpers.mail import Mail, Email, To, Content, Cc
+from sendgrid.helpers.mail import Mail, Email, To, Content, Bc
 import urllib.request, urllib.parse, urllib.error
 
 # Load environment variables
@@ -83,7 +83,7 @@ def send_email(body: str, recipient_email: str) -> Dict[str, Any]:
         to_email = To(recipient_email)
         content = Content("text/html", body)
         mail = Mail(from_email, to_email, "Enquiry on Joshua Balogun's Digital Twin", content)
-        mail.add_cc(Cc(emailto))
+        mail.add_bc(Bc(emailto))
         sg.client.mail.send.post(request_body=mail.get())
         return {"status": "success", "recipient_email": recipient_email}
     except urllib.error.HTTPError as e:
