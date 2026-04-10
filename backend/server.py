@@ -12,7 +12,7 @@ import boto3
 from botocore.exceptions import ClientError
 from context import prompt
 import sendgrid
-from sendgrid.helpers.mail import Mail, Email, To, Content, Cc
+from sendgrid.helpers.mail import Mail, Email, To, Content
 import urllib.request, urllib.parse, urllib.error
 
 # Load environment variables
@@ -72,10 +72,16 @@ def send_email(body: str, recipient_email: str) -> Dict[str, Any]:
     """Send out an email with the given body."""
     emailkey = os.getenv("SENDGRID_API_KEY")
     emailfrom = os.getenv("SENDGRID_SENDER_EMAIL")
-    
+    internal_copy = os.getenv("RECIPIENT_EMAIL")
+
     if not emailkey or not emailfrom:
         print("Sendgrid skipped: SENDGRID_API_KEY or SENDGRID_SENDER_EMAIL is missing")
         return {"status": "skipped", "reason": "missing sendgrid env vars"}
+
+    # Clean up tool-provided email in case model includes wrappers like <email@domain.com>
+    recipient_email = (recipient_email or "").strip().strip("<>").strip()
+    if not recipient_email or "@" not in recipient_email:
+        return {"status": "error", "reason": f"invalid recipient_email: {recipient_email!r}"}
 
     try:
         sg = sendgrid.SendGridAPIClient(api_key=emailkey)
@@ -83,9 +89,11 @@ def send_email(body: str, recipient_email: str) -> Dict[str, Any]:
         to_email = To(recipient_email)
         content = Content("text/html", body)
         mail = Mail(from_email, to_email, "Enquiry on Joshua Balogun's Digital Twin", content)
-        mail.add_Cc(Cc(emailfrom))
-        sg.client.mail.send.post(request_body=mail.get())
-        return {"status": "success", "recipient_email": recipient_email}
+        if internal_copy and internal_copy.strip() and internal_copy.strip() != recipient_email:
+            mail.add_to(To(internal_copy.strip()))
+
+        response = sg.client.mail.send.post(request_body=mail.get())
+        return {"status": "success", "recipient_email": recipient_email, "http_status": getattr(response, "status_code", None)}
     except urllib.error.HTTPError as e:
         error_body = ""
         try:
