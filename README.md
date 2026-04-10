@@ -28,7 +28,7 @@ Production URL: https://d1bzxokzy1i8o6.cloudfront.net/
 
 <br/>
 
-<img width="950" height="675" alt="Screenshot" src="frontend/public/chat-interface.png" />
+<img width="1024" height="612" alt="Screenshot" src="frontend/public/chat-interface.png" />
 
 </div>
 
