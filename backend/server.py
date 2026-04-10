@@ -12,7 +12,7 @@ import boto3
 from botocore.exceptions import ClientError
 from context import prompt
 import sendgrid
-from sendgrid.helpers.mail import Mail, Email, To, Content, Bc
+from sendgrid.helpers.mail import Mail, Email, To, Content, Cc
 import urllib.request, urllib.parse, urllib.error
 
 # Load environment variables
@@ -72,8 +72,8 @@ def send_email(body: str, recipient_email: str) -> Dict[str, Any]:
     """Send out an email with the given body."""
     emailkey = os.getenv("SENDGRID_API_KEY")
     emailfrom = os.getenv("SENDGRID_SENDER_EMAIL")
-    emailto = os.getenv("RECIPIENT_EMAIL")
-    if not emailkey or not emailfrom or not emailto:
+    
+    if not emailkey or not emailfrom:
         print("Sendgrid skipped: SENDGRID_API_KEY or SENDGRID_SENDER_EMAIL is missing")
         return {"status": "skipped", "reason": "missing sendgrid env vars"}
 
@@ -83,7 +83,7 @@ def send_email(body: str, recipient_email: str) -> Dict[str, Any]:
         to_email = To(recipient_email)
         content = Content("text/html", body)
         mail = Mail(from_email, to_email, "Enquiry on Joshua Balogun's Digital Twin", content)
-        mail.add_bc(Bc(emailto))
+        mail.add_Cc(Cc(emailfrom))
         sg.client.mail.send.post(request_body=mail.get())
         return {"status": "success", "recipient_email": recipient_email}
     except urllib.error.HTTPError as e:

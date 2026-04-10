@@ -26,6 +26,10 @@ Production URL: https://d1bzxokzy1i8o6.cloudfront.net/
 ![CloudFront](https://img.shields.io/badge/CloudFront-CDN-8C4FFF?logo=amazoncloudfront&logoColor=white)
 ![Terraform](https://img.shields.io/badge/Terraform-IaC-844FBA?logo=terraform&logoColor=white)
 
+<br/>
+
+<img width="950" height="675" alt="Screenshot" src="frontend/public/chat-interface.png" />
+
 </div>
 
 ## Overview
