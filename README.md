@@ -1,4 +1,17 @@
-# AI Digital Twin Application
+<div align="center">
+ <h1> AI Digital Twin Application </h1>
+</div>
+
+<br/>
+
+<div align="center">
+A production-ready, full-stack AI Digital Twin that represents **Joshua Balogun** in real-time conversations.
+
+This project combines a modern Next.js frontend with a FastAPI backend powered by **AWS Bedrock** and deploys to AWS using **Lambda + API Gateway + S3 + CloudFront + Terraform**.
+
+Production URL: https://d1bzxokzy1i8o6.cloudfront.net/
+
+<br />
 
 ![Next.js](https://img.shields.io/badge/Next.js-16-black?logo=nextdotjs)
 ![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=white)
@@ -13,13 +26,7 @@
 ![CloudFront](https://img.shields.io/badge/CloudFront-CDN-8C4FFF?logo=amazoncloudfront&logoColor=white)
 ![Terraform](https://img.shields.io/badge/Terraform-IaC-844FBA?logo=terraform&logoColor=white)
 
-A production-ready, full-stack AI Digital Twin that represents **Joshua Balogun** in real-time conversations.
-
-This project combines a modern Next.js frontend with a FastAPI backend powered by **AWS Bedrock** and deploys to AWS using **Lambda + API Gateway + S3 + CloudFront + Terraform**.
-
-## Live Application
-
-- Production URL: https://d1bzxokzy1i8o6.cloudfront.net/
+</div>
 
 ## Overview
 
@@ -254,22 +261,6 @@ This script will:
 ```bash
 ./scripts/destroy.sh prod twin
 ```
-
-## Demo Screenshots
-
-Add your product screenshots below (replace paths with your actual files):
-
-```md
-![Chat Interface](docs/screenshots/chat-interface.png)
-![Conversation Flow](docs/screenshots/conversation-flow.png)
-![Mobile View](docs/screenshots/mobile-view.png)
-```
-
-### Screenshot Placeholders
-
-- `docs/screenshots/chat-interface.png`
-- `docs/screenshots/conversation-flow.png`
-- `docs/screenshots/mobile-view.png`
 
 ## Social Links
 
