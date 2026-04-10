@@ -137,6 +137,12 @@ resource "aws_lambda_function" "api" {
       S3_BUCKET        = aws_s3_bucket.memory.id
       USE_S3           = "true"
       BEDROCK_MODEL_ID = var.bedrock_model_id
+      PUSHOVER_USER    = var.push_over_user
+      PUSHOVER_TOKEN   = var.push_over_token
+      PUSHOVER_URL     = var.push_over_url
+      SENDGRID_API_KEY = var.sendgrid_api_key
+      SENDGRID_SENDER_EMAIL = var.sendgrid_sender_email
+      SENDGRID_RECIPIENT_EMAIL = var.sendgrid_recipient_email
     }
   }
 

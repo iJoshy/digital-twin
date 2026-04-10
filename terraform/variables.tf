@@ -51,3 +51,40 @@ variable "root_domain" {
   type        = string
   default     = ""
 }
+
+
+variable "push_over_user" {
+  description = "Pushover user"
+  type        = string
+  default     = ""
+}
+
+variable "push_over_token" {
+  description = "Pushover token"
+  type        = string
+  default     = ""
+}
+
+variable "push_over_url" {
+  description = "Pushover URL"
+  type        = string
+  default     = ""
+}
+
+variable "sendgrid_api_key" {
+  description = "Sendgrid API key"
+  type        = string
+  default     = ""
+}
+
+variable "sendgrid_sender_email" {
+  description = "Sendgrid sender email"
+  type        = string
+  default     = ""
+}
+
+variable "sendgrid_recipient_email" {
+  description = "Sendgrid recipient email"
+  type        = string
+  default     = ""
+}
