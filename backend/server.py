@@ -62,6 +62,10 @@ LEAD_INTENT_PATTERNS = [
     r"\b(?:can joshua|would joshua|is joshua)\s+(?:join|work|interview|consult|help|available)\b",
 ]
 UNSUPPORTED_ANSWER_PATTERNS = [
+    r"\bas an ai\b",
+    r"\bi (?:do not|don't) have personal (?:experiences|history)\b",
+    r"\bi (?:can|could) appreciate the significance\b",
+    r"\bif you have any questions.*professional background\b",
     r"\b(?:likely|possibly|probably|presumably)\b",
     r"\b(?:might have|may have|would have|could have)\b",
     r"\b(?:i think|i imagine|i suspect|my guess)\b",
