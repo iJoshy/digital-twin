@@ -9,7 +9,7 @@ A production-ready, full-stack AI Digital Twin that represents **Joshua Balogun*
 
 This project combines a modern Next.js frontend with a FastAPI backend powered by **AWS Bedrock** and deploys to AWS using **Lambda + API Gateway + S3 + CloudFront + Terraform**.
 
-Production URL: https://d36qx0izkd71ph.cloudfront.net/
+Production URL: https://dyuryity6btiw.cloudfront.net/
 
 <br />
 
