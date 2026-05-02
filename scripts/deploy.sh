@@ -15,8 +15,13 @@ echo "📦 Building Lambda package..."
 cd terraform
 AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
 AWS_REGION=${DEFAULT_AWS_REGION:-us-east-1}
+STATE_BUCKET="twin-terraform-state-${AWS_ACCOUNT_ID}"
+
+source ../scripts/terraform-backend.sh
+ensure_terraform_state_bucket "$STATE_BUCKET" "$AWS_REGION"
+
 terraform init -input=false \
-  -backend-config="bucket=twin-terraform-state-${AWS_ACCOUNT_ID}" \
+  -backend-config="bucket=${STATE_BUCKET}" \
   -backend-config="key=${ENVIRONMENT}/terraform.tfstate" \
   -backend-config="region=${AWS_REGION}" \
   -backend-config="use_lockfile=true" \

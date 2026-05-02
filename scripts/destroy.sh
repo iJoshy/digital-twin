@@ -21,11 +21,15 @@ cd "$(dirname "$0")/../terraform"
 # Get AWS Account ID and Region for backend configuration
 AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
 AWS_REGION=${DEFAULT_AWS_REGION:-us-east-1}
+STATE_BUCKET="twin-terraform-state-${AWS_ACCOUNT_ID}"
+
+source ../scripts/terraform-backend.sh
+ensure_terraform_state_bucket "$STATE_BUCKET" "$AWS_REGION"
 
 # Initialize terraform with S3 backend
 echo "🔧 Initializing Terraform with S3 backend..."
 terraform init -input=false \
-  -backend-config="bucket=twin-terraform-state-${AWS_ACCOUNT_ID}" \
+  -backend-config="bucket=${STATE_BUCKET}" \
   -backend-config="key=${ENVIRONMENT}/terraform.tfstate" \
   -backend-config="region=${AWS_REGION}" \
   -backend-config="use_lockfile=true" \

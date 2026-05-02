@@ -61,6 +61,13 @@ LEAD_INTENT_PATTERNS = [
     r"\b(?:available|availability|start date|timeline|cv|resume|résumé|rate|salary|compensation)\b",
     r"\b(?:can joshua|would joshua|is joshua)\s+(?:join|work|interview|consult|help|available)\b",
 ]
+UNSUPPORTED_ANSWER_PATTERNS = [
+    r"\b(?:likely|possibly|probably|presumably)\b",
+    r"\b(?:might have|may have|would have|could have)\b",
+    r"\b(?:i think|i imagine|i suspect|my guess)\b",
+    r"\b(?:not in (?:my|the) notes|don't have (?:that|this|those) (?:specific )?(?:detail|information|context))\b",
+    r"\b(?:can't say for certain|cannot say for certain|without guessing)\b",
+]
 COMPANY_PATTERNS = [
     r"\b(?:company|organisation|organization|at|from)\s+(?:is\s+)?([A-Za-z0-9][A-Za-z0-9 &.,'-]{1,80})",
     r"\b(?:we are|we're)\s+([A-Za-z0-9][A-Za-z0-9 &.,'-]{1,80})",
@@ -236,12 +243,10 @@ def send_push_notification(text: str) -> Dict[str, Any]:
 
 
 def record_user_details(email, name="Name not provided", notes="not provided"):
-    push(f"Recording {name} with email {email} and notes {notes}")
-    return {"recorded": "ok"}
+    return {"recorded": "ok", "name": name, "email": clean_email_address(email), "notes": notes}
 
 def record_unknown_question(question):
-    push(f"Recording {question}")
-    return {"recorded": "ok"}
+    return {"recorded": "ok", "question": question}
 
 
 record_user_details_json = {
@@ -560,11 +565,45 @@ def apply_unknown_tool_calls_to_state(state: Dict[str, Any], tool_calls: List[Di
         if not isinstance(question, str) or not question.strip():
             continue
 
-        state["pending_unknown_question"] = question.strip()
-        state["unknown_recorded_at"] = datetime.now().isoformat()
-        state["notification_sent_at"] = None
-        state["notification_results"] = []
-        state["completed_notification_tools"] = []
+        mark_unknown_question_pending(state, question.strip())
+
+
+def apply_contact_tool_calls_to_state(state: Dict[str, Any], tool_calls: List[Dict[str, Any]]) -> None:
+    for call in tool_calls:
+        if call.get("name") != "record_user_details":
+            continue
+        if not tool_result_succeeded(call.get("result", {})):
+            continue
+
+        tool_input = call.get("input", {})
+        name = tool_input.get("name")
+        email = tool_input.get("email")
+
+        if isinstance(name, str) and name.strip() and name.strip().lower() != "name not provided":
+            state["name"] = " ".join(name.strip().split())
+        if isinstance(email, str) and clean_email_address(email):
+            state["email"] = clean_email_address(email).lower()
+
+
+def mark_unknown_question_pending(state: Dict[str, Any], question: str) -> None:
+    state["pending_unknown_question"] = question.strip()
+    state["unknown_recorded_at"] = datetime.now().isoformat()
+    state["notification_sent_at"] = None
+    state["notification_results"] = []
+    state["completed_notification_tools"] = []
+
+
+def response_looks_unsupported(response: str) -> bool:
+    """Catch model answers that admit uncertainty or speculate instead of using the unknown workflow."""
+    if not isinstance(response, str) or not response.strip():
+        return False
+
+    normalized = " ".join(response.lower().split())
+    return any(re.search(pattern, normalized, flags=re.IGNORECASE) for pattern in UNSUPPORTED_ANSWER_PATTERNS)
+
+
+def unknown_answer_response() -> str:
+    return "I do not have that specific detail in Joshua's notes, so I do not want to guess."
 
 
 def merge_lead_intent_into_state(state: Dict[str, Any], message: str) -> None:
@@ -602,6 +641,38 @@ def missing_contact_fields(state: Dict[str, Any]) -> List[str]:
     if not state.get("email"):
         missing.append("email")
     return missing
+
+
+def contact_followup_request(fields: List[str]) -> str:
+    field_names = []
+    for field in fields:
+        if field == "email":
+            field_names.append("email address")
+        else:
+            field_names.append(field)
+
+    if not field_names:
+        return ""
+
+    if len(field_names) == 1:
+        joined_fields = field_names[0]
+    else:
+        joined_fields = f"{', '.join(field_names[:-1])} and {field_names[-1]}"
+
+    return f"Could you share your {joined_fields} so Joshua can follow up with you directly?"
+
+
+def strip_contact_followup_requests(response: str) -> str:
+    """Let the backend own the contact ask instead of keeping partial model-generated asks."""
+    contact_request_pattern = re.compile(
+        r"^\s*could you (?:also )?share your .{1,120} so joshua can follow up with you directly\?\s*$",
+        flags=re.IGNORECASE,
+    )
+    lines = [
+        line for line in (response or "").splitlines()
+        if not contact_request_pattern.match(line)
+    ]
+    return "\n".join(lines).strip()
 
 
 def conversation_summary(conversation: List[Dict], latest_user_message: str) -> str:
@@ -797,9 +868,9 @@ def ensure_followup_response(response: str, state: Dict[str, Any], enforced_tool
     if (state.get("pending_unknown_question") or state.get("lead_intent")) and not state.get("notification_sent_at"):
         missing = missing_contact_fields(state)
         if missing:
-            request = f"Could you share your {' and '.join(missing)} so Joshua can follow up with you directly?"
-            if "email" not in response.lower() or ("name" in missing and "name" not in response.lower()):
-                return f"{response.strip()}\n\n{request}".strip()
+            response_without_partial_requests = strip_contact_followup_requests(response)
+            request = contact_followup_request(missing)
+            return f"{response_without_partial_requests}\n\n{request}".strip()
 
     return response
 
@@ -982,8 +1053,13 @@ async def chat(request: ChatRequest):
 
         # Backend-enforced follow-up workflow for unanswered questions.
         apply_unknown_tool_calls_to_state(followup_state, tool_calls)
+        if not followup_state.get("pending_unknown_question") and response_looks_unsupported(assistant_response):
+            execute_tool("record_unknown_question", {"question": request.message})
+            mark_unknown_question_pending(followup_state, request.message)
+            assistant_response = unknown_answer_response()
         merge_lead_intent_into_state(followup_state, request.message)
         merge_contact_details_into_state(followup_state, request.message)
+        apply_contact_tool_calls_to_state(followup_state, tool_calls)
         model_called_tools = valid_model_followup_tools(tool_calls, followup_state)
         enforced_tools = enforce_followup_tools(
             followup_state,

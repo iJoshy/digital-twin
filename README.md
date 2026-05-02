@@ -246,7 +246,7 @@ Open `http://localhost:3000`.
 - Docker installed (used to package Lambda dependencies)
 - Node.js + npm
 - Python tooling (`uv` or pip)
-- S3 bucket for Terraform remote state (`twin-terraform-state-<aws-account-id>`); state locking uses an S3 lockfile, so no DynamoDB lock table is required.
+- The deployment script creates the Terraform remote state bucket (`twin-terraform-state-<aws-account-id>`) if it does not already exist; state locking uses an S3 lockfile, so no DynamoDB lock table is required.
 
 ### Deploy
 
