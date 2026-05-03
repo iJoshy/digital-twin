@@ -1,0 +1,6 @@
+project_name     = "twin"
+environment      = "prod"
+region           = "us-central1"
+gemini_model_id  = "gemini-2.5-flash-lite"
+cloud_run_cpu    = "1"
+cloud_run_memory = "512Mi"

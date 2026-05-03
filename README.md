@@ -261,6 +261,34 @@ This script will:
 - Build static frontend export
 - Sync frontend build to S3
 
+### Deploy to GCP
+
+The GCP path runs in parallel with AWS and uses Cloud Run, Cloud Storage, Cloud CDN, Artifact Registry, and Vertex AI Gemini.
+
+```bash
+export GCP_PROJECT_ID=your-gcp-project-id
+export GCP_REGION=us-central1
+./scripts/deploy-gcp.sh dev twin
+```
+
+For GitHub Actions, use the `Deploy Digital Twin GCP` workflow and configure environment-scoped secrets:
+
+- `GCP_PROJECT_ID`
+- `GCP_WORKLOAD_IDENTITY_PROVIDER`
+- `GCP_SERVICE_ACCOUNT`
+- `PUSHOVER_USER`
+- `PUSHOVER_TOKEN`
+- `SENDGRID_API_KEY`
+- `SENDGRID_SENDER_EMAIL`
+- `SENDGRID_RECIPIENT_EMAIL`
+
+The GCP deployment outputs two frontend URLs:
+
+- `frontend_url` - Cloud CDN URL backed by a global external HTTP load balancer.
+- `frontend_bucket_url` - direct Cloud Storage bucket URL, useful for debugging.
+
+The default CDN URL is HTTP on a reserved global IP. Add a custom domain and managed certificate later if you want HTTPS on your own domain.
+
 ### Destroy environment
 
 ```bash

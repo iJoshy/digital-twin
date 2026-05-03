@@ -57,6 +57,13 @@ def test_required_tools_are_registered() -> None:
     assert not missing, f"Tool registry is missing required tools: {sorted(missing)}"
 
 
+def test_gemini_tool_declarations_are_buildable() -> None:
+    declarations = server.gemini_tool_declarations()
+    declaration_names = {declaration.name for declaration in declarations}
+
+    assert REQUIRED_TOOLS.issubset(declaration_names)
+
+
 def test_followup_tool_descriptions_are_specific() -> None:
     schema_by_name = {schema["name"]: schema for schema in tool_schemas}
 
@@ -436,6 +443,7 @@ def test_history_sanitizer_omits_blocked_user_attacks() -> None:
 def run() -> None:
     test_prompt_contains_followup_contract()
     test_required_tools_are_registered()
+    test_gemini_tool_declarations_are_buildable()
     test_followup_tool_descriptions_are_specific()
     test_backend_enforces_missing_followup_tools()
     test_backend_waits_for_missing_contact_details()

@@ -32,18 +32,25 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Initialize Bedrock client - see Q42 on https://edwarddonner.com/faq if the Region gives you problems
-bedrock_client = boto3.client(
-    service_name="bedrock-runtime", 
-    region_name=os.getenv("DEFAULT_AWS_REGION", "eu-west-1")
-)
-
-# Bedrock model selection - see Q42 on https://edwarddonner.com/faq for more
+# AI provider configuration
+AI_PROVIDER = os.getenv("AI_PROVIDER", "bedrock").lower()
 BEDROCK_MODEL_ID = os.getenv("BEDROCK_MODEL_ID", "global.amazon.nova-2-lite-v1:0")
+GEMINI_MODEL_ID = os.getenv("GEMINI_MODEL_ID", "gemini-2.5-flash-lite")
+GOOGLE_CLOUD_PROJECT = os.getenv("GOOGLE_CLOUD_PROJECT", "")
+GCP_REGION = os.getenv("GCP_REGION", os.getenv("GOOGLE_CLOUD_LOCATION", "us-central1"))
+
+bedrock_client = None
+if AI_PROVIDER == "bedrock":
+    bedrock_client = boto3.client(
+        service_name="bedrock-runtime",
+        region_name=os.getenv("DEFAULT_AWS_REGION", "eu-west-1"),
+    )
 
 # Memory storage configuration
 USE_S3 = os.getenv("USE_S3", "false").lower() == "true"
 S3_BUCKET = os.getenv("S3_BUCKET", "")
+USE_GCS = os.getenv("USE_GCS", "false").lower() == "true"
+GCS_BUCKET = os.getenv("GCS_BUCKET", "")
 MEMORY_DIR = os.getenv("MEMORY_DIR", "../memory")
 JOSHUA_EMAIL = (
     os.getenv("RECIPIENT_EMAIL")
@@ -100,6 +107,14 @@ PROMPT_INJECTION_PATTERNS = [
 # Initialize S3 client if needed
 if USE_S3:
     s3_client = boto3.client("s3")
+
+if USE_GCS:
+    from google.cloud import storage
+    from google.api_core.exceptions import NotFound
+
+    gcs_client = storage.Client(project=GOOGLE_CLOUD_PROJECT or None)
+else:
+    NotFound = None
 
 
 # Request/Response models
@@ -364,7 +379,13 @@ def default_followup_state() -> Dict[str, Any]:
 
 def load_followup_state(session_id: str) -> Dict[str, Any]:
     """Load deterministic follow-up state for unanswered questions."""
-    if USE_S3:
+    if USE_GCS:
+        try:
+            blob = gcs_client.bucket(GCS_BUCKET).blob(get_followup_state_path(session_id))
+            state = json.loads(blob.download_as_text())
+        except NotFound:
+            return default_followup_state()
+    elif USE_S3:
         try:
             response = s3_client.get_object(Bucket=S3_BUCKET, Key=get_followup_state_path(session_id))
             state = json.loads(response["Body"].read().decode("utf-8"))
@@ -387,7 +408,13 @@ def load_followup_state(session_id: str) -> Dict[str, Any]:
 
 def save_followup_state(session_id: str, state: Dict[str, Any]):
     """Save deterministic follow-up state for unanswered questions."""
-    if USE_S3:
+    if USE_GCS:
+        blob = gcs_client.bucket(GCS_BUCKET).blob(get_followup_state_path(session_id))
+        blob.upload_from_string(
+            json.dumps(state, indent=2),
+            content_type="application/json",
+        )
+    elif USE_S3:
         s3_client.put_object(
             Bucket=S3_BUCKET,
             Key=get_followup_state_path(session_id),
@@ -403,7 +430,13 @@ def save_followup_state(session_id: str, state: Dict[str, Any]):
 
 def load_conversation(session_id: str) -> List[Dict]:
     """Load conversation history from storage"""
-    if USE_S3:
+    if USE_GCS:
+        try:
+            blob = gcs_client.bucket(GCS_BUCKET).blob(get_memory_path(session_id))
+            return json.loads(blob.download_as_text())
+        except NotFound:
+            return []
+    elif USE_S3:
         try:
             response = s3_client.get_object(Bucket=S3_BUCKET, Key=get_memory_path(session_id))
             return json.loads(response["Body"].read().decode("utf-8"))
@@ -422,7 +455,13 @@ def load_conversation(session_id: str) -> List[Dict]:
 
 def save_conversation(session_id: str, messages: List[Dict]):
     """Save conversation history to storage"""
-    if USE_S3:
+    if USE_GCS:
+        blob = gcs_client.bucket(GCS_BUCKET).blob(get_memory_path(session_id))
+        blob.upload_from_string(
+            json.dumps(messages, indent=2),
+            content_type="application/json",
+        )
+    elif USE_S3:
         s3_client.put_object(
             Bucket=S3_BUCKET,
             Key=get_memory_path(session_id),
@@ -881,6 +920,9 @@ def ensure_followup_response(response: str, state: Dict[str, Any], enforced_tool
 
 def call_bedrock(conversation: List[Dict], user_message: str) -> Dict[str, Any]:
     """Call AWS Bedrock with conversation history"""
+    if bedrock_client is None:
+        raise HTTPException(status_code=500, detail="Bedrock provider is not initialized")
+
     
     # Build messages in Bedrock format
     messages = []
@@ -973,13 +1015,120 @@ def call_bedrock(conversation: List[Dict], user_message: str) -> Dict[str, Any]:
             raise HTTPException(status_code=500, detail=f"Bedrock error: {str(e)}")
 
 
+def gemini_tool_declarations():
+    from google.genai import types
+
+    return [
+        types.FunctionDeclaration(
+            name=schema["name"],
+            description=schema["description"],
+            parametersJsonSchema=schema["parameters"],
+        )
+        for schema in tool_schemas
+    ]
+
+
+def gemini_text_from_parts(parts: List[Any]) -> str:
+    text_parts = []
+    for part in parts or []:
+        text = getattr(part, "text", None)
+        if text:
+            text_parts.append(text)
+    return "\n".join(text_parts).strip()
+
+
+def call_gemini(conversation: List[Dict], user_message: str) -> Dict[str, Any]:
+    """Call Vertex AI Gemini with conversation history and function calling."""
+    if not GOOGLE_CLOUD_PROJECT:
+        raise HTTPException(status_code=500, detail="GOOGLE_CLOUD_PROJECT is required for Gemini")
+
+    try:
+        from google import genai
+        from google.genai import types
+
+        client = genai.Client(
+            vertexai=True,
+            project=GOOGLE_CLOUD_PROJECT,
+            location=GCP_REGION,
+        )
+        tools = [types.Tool(function_declarations=gemini_tool_declarations())]
+        config = types.GenerateContentConfig(
+            system_instruction=prompt(),
+            tools=tools,
+            temperature=0.7,
+            top_p=0.9,
+            max_output_tokens=2000,
+        )
+
+        contents = []
+        for msg in conversation[-50:]:
+            content_text = msg.get("content", "")
+            if not isinstance(content_text, str) or not content_text.strip():
+                continue
+            content_text = safe_content_for_model(msg.get("role", ""), content_text)
+            role = "model" if msg.get("role") == "assistant" else "user"
+            contents.append(types.Content(role=role, parts=[types.Part(text=content_text)]))
+
+        contents.append(types.Content(role="user", parts=[types.Part(text=user_message)]))
+        tool_calls = []
+
+        for _ in range(5):
+            response = client.models.generate_content(
+                model=GEMINI_MODEL_ID,
+                contents=contents,
+                config=config,
+            )
+            candidate = response.candidates[0] if response.candidates else None
+            output_content = candidate.content if candidate else None
+            parts = list(getattr(output_content, "parts", []) or [])
+            function_calls = [
+                getattr(part, "function_call", None)
+                for part in parts
+                if getattr(part, "function_call", None)
+            ]
+
+            if not function_calls:
+                final_text = strip_thinking_blocks(gemini_text_from_parts(parts))
+                return {"response": final_text or "I completed that action.", "tool_calls": tool_calls}
+
+            contents.append(output_content)
+            function_response_parts = []
+            for function_call in function_calls:
+                tool_name = function_call.name
+                tool_input = dict(function_call.args or {})
+                result = execute_tool(tool_name, tool_input)
+                tool_calls.append({"name": tool_name, "input": tool_input, "result": result})
+                function_response_parts.append(
+                    types.Part.from_function_response(
+                        name=tool_name,
+                        response=result,
+                    )
+                )
+
+            contents.append(types.Content(role="user", parts=function_response_parts))
+
+        raise HTTPException(status_code=500, detail="Gemini tool loop exceeded maximum turns")
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Gemini error: {e}")
+        raise HTTPException(status_code=500, detail=f"Gemini error: {str(e)}")
+
+
+def call_ai_model(conversation: List[Dict], user_message: str) -> Dict[str, Any]:
+    if AI_PROVIDER == "gemini":
+        return call_gemini(conversation, user_message)
+    return call_bedrock(conversation, user_message)
+
+
 @app.get("/")
 async def root():
     return {
-        "message": "AI Digital Twin API (Powered by AWS Bedrock)",
+        "message": f"AI Digital Twin API (Powered by {AI_PROVIDER})",
         "memory_enabled": True,
-        "storage": "S3" if USE_S3 else "local",
-        "ai_model": BEDROCK_MODEL_ID
+        "storage": "GCS" if USE_GCS else ("S3" if USE_S3 else "local"),
+        "ai_provider": AI_PROVIDER,
+        "ai_model": GEMINI_MODEL_ID if AI_PROVIDER == "gemini" else BEDROCK_MODEL_ID,
     }
 
 
@@ -988,7 +1137,9 @@ async def health_check():
     return {
         "status": "healthy", 
         "use_s3": USE_S3,
-        "bedrock_model": BEDROCK_MODEL_ID
+        "use_gcs": USE_GCS,
+        "ai_provider": AI_PROVIDER,
+        "ai_model": GEMINI_MODEL_ID if AI_PROVIDER == "gemini" else BEDROCK_MODEL_ID,
     }
 
 
@@ -1050,10 +1201,10 @@ async def chat(request: ChatRequest):
             save_followup_state(session_id, followup_state)
             return ChatResponse(response=PROMPT_INJECTION_RESPONSE, session_id=session_id)
 
-        # Call Bedrock for response
-        bedrock_result = call_bedrock(conversation, request.message)
-        assistant_response = bedrock_result["response"]
-        tool_calls = bedrock_result["tool_calls"]
+        # Call configured AI provider for response
+        model_result = call_ai_model(conversation, request.message)
+        assistant_response = model_result["response"]
+        tool_calls = model_result["tool_calls"]
 
         # Backend-enforced follow-up workflow for unanswered questions.
         apply_unknown_tool_calls_to_state(followup_state, tool_calls)
