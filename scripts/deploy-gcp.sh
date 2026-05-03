@@ -75,6 +75,7 @@ terraform apply \
 API_URL=$(terraform output -raw cloud_run_url)
 FRONTEND_BUCKET=$(terraform output -raw frontend_bucket)
 FRONTEND_URL=$(terraform output -raw frontend_url)
+MEMORY_BUCKET=$(terraform output -raw memory_bucket)
 
 if [ -z "$API_URL" ]; then
   API_URL=$(gcloud run services describe "${SERVICE_NAME}" \
@@ -87,6 +88,21 @@ if [ -z "$API_URL" ]; then
   echo "Cloud Run URL is empty; aborting frontend build to avoid deploying a broken API URL."
   exit 1
 fi
+
+CLOUD_RUN_SERVICE_ACCOUNT=$(gcloud run services describe "${SERVICE_NAME}" \
+  --project="${GCP_PROJECT_ID}" \
+  --region="${GCP_REGION}" \
+  --format="value(spec.template.spec.serviceAccountName)")
+
+if [ -z "$CLOUD_RUN_SERVICE_ACCOUNT" ]; then
+  CLOUD_RUN_SERVICE_ACCOUNT="${PROJECT_NAME}-${ENVIRONMENT}-run@${GCP_PROJECT_ID}.iam.gserviceaccount.com"
+fi
+
+echo "Ensuring Cloud Run can read and write conversation memory..."
+gcloud storage buckets add-iam-policy-binding "gs://${MEMORY_BUCKET}" \
+  --member="serviceAccount:${CLOUD_RUN_SERVICE_ACCOUNT}" \
+  --role="roles/storage.objectAdmin" \
+  >/dev/null
 
 cd ../frontend
 echo "NEXT_PUBLIC_API_URL=${API_URL}" > .env.production
