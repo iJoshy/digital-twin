@@ -9,7 +9,7 @@ A production-ready, full-stack AI Digital Twin that represents **Joshua Balogun*
 
 This project combines a modern Next.js frontend with a FastAPI backend powered by **AWS Bedrock** and deploys to AWS using **Lambda + API Gateway + S3 + CloudFront + Terraform**.
 
-Production URL: http://34.111.248.47/
+Production URL: https://dyuryity6btiw.cloudfront.net/
 
 <br />
 
@@ -263,7 +263,7 @@ This script will:
 
 ### Deploy to GCP
 
-The GCP path runs in parallel with AWS and uses Cloud Run, Cloud Storage, Cloud CDN, Artifact Registry, and Vertex AI Gemini.
+The GCP path runs in parallel with AWS and uses Cloud Run, Cloud Storage, Artifact Registry, and Vertex AI Gemini.
 
 ```bash
 export GCP_PROJECT_ID=your-gcp-project-id
@@ -281,13 +281,6 @@ For GitHub Actions, use the `Deploy Digital Twin GCP` workflow and configure env
 - `SENDGRID_API_KEY`
 - `SENDGRID_SENDER_EMAIL`
 - `SENDGRID_RECIPIENT_EMAIL`
-
-The GCP deployment outputs two frontend URLs:
-
-- `frontend_url` - Cloud CDN URL backed by a global external HTTP load balancer.
-- `frontend_bucket_url` - direct Cloud Storage bucket URL, useful for debugging.
-
-The default CDN URL is HTTP on a reserved global IP. Add a custom domain and managed certificate later if you want HTTPS on your own domain.
 
 ### Destroy environment
 

@@ -14,7 +14,6 @@ resource "google_project_service" "required" {
   for_each = toset([
     "aiplatform.googleapis.com",
     "artifactregistry.googleapis.com",
-    "compute.googleapis.com",
     "iam.googleapis.com",
     "run.googleapis.com",
   ])
@@ -59,46 +58,6 @@ resource "google_storage_bucket_iam_member" "frontend_public_read" {
   bucket = google_storage_bucket.frontend.name
   role   = "roles/storage.objectViewer"
   member = "allUsers"
-}
-
-resource "google_compute_global_address" "frontend" {
-  name       = "${local.name_prefix}-frontend-ip"
-  ip_version = "IPV4"
-
-  depends_on = [google_project_service.required]
-}
-
-resource "google_compute_backend_bucket" "frontend" {
-  name        = "${local.name_prefix}-frontend-backend"
-  bucket_name = google_storage_bucket.frontend.name
-  enable_cdn  = true
-
-  cdn_policy {
-    cache_mode        = "CACHE_ALL_STATIC"
-    client_ttl        = 3600
-    default_ttl       = 3600
-    max_ttl           = 86400
-    negative_caching  = true
-    serve_while_stale = 86400
-  }
-}
-
-resource "google_compute_url_map" "frontend" {
-  name            = "${local.name_prefix}-frontend-url-map"
-  default_service = google_compute_backend_bucket.frontend.id
-}
-
-resource "google_compute_target_http_proxy" "frontend" {
-  name    = "${local.name_prefix}-frontend-http-proxy"
-  url_map = google_compute_url_map.frontend.id
-}
-
-resource "google_compute_global_forwarding_rule" "frontend_http" {
-  name                  = "${local.name_prefix}-frontend-http"
-  ip_address            = google_compute_global_address.frontend.address
-  port_range            = "80"
-  target                = google_compute_target_http_proxy.frontend.id
-  load_balancing_scheme = "EXTERNAL_MANAGED"
 }
 
 resource "google_service_account" "cloud_run" {
@@ -172,7 +131,7 @@ resource "google_cloud_run_v2_service" "api" {
       }
       env {
         name  = "CORS_ORIGINS"
-        value = "https://storage.googleapis.com,https://${google_storage_bucket.frontend.name}.storage.googleapis.com,http://${google_compute_global_address.frontend.address}"
+        value = "https://storage.googleapis.com,https://${google_storage_bucket.frontend.name}.storage.googleapis.com"
       }
       env {
         name  = "PUSHOVER_USER"

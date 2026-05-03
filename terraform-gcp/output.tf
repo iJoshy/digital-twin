@@ -19,17 +19,7 @@ output "frontend_bucket" {
 }
 
 output "frontend_url" {
-  description = "Cloud CDN frontend URL"
-  value       = "http://${google_compute_global_address.frontend.address}/index.html"
-}
-
-output "frontend_cdn_ip" {
-  description = "Global IP address for the Cloud CDN frontend"
-  value       = google_compute_global_address.frontend.address
-}
-
-output "frontend_bucket_url" {
-  description = "Direct Cloud Storage frontend URL"
+  description = "Public static frontend URL"
   value       = "https://${google_storage_bucket.frontend.name}.storage.googleapis.com/index.html"
 }
 
