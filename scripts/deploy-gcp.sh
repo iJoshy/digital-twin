@@ -3,8 +3,32 @@ set -e
 
 ENVIRONMENT=${1:-dev}
 PROJECT_NAME=${2:-twin}
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+ENV_FILE="${REPO_ROOT}/.env"
+
+# Locally (or in CI when .env is present), auto-load secrets from .env so the
+# user doesn't have to keep two copies. In CI the workflow exports TF_VAR_*
+# directly, and that already-set value wins via the `${TF_VAR_*:-...}` defaults
+# below.
+if [ -f "$ENV_FILE" ]; then
+  set -a
+  # shellcheck source=/dev/null
+  . "$ENV_FILE"
+  set +a
+fi
+
+# Map repo-standard env names to the TF_VAR_* names Terraform expects, without
+# overriding values already exported by the caller.
+export TF_VAR_pushover_user="${TF_VAR_pushover_user:-${PUSHOVER_USER:-}}"
+export TF_VAR_pushover_token="${TF_VAR_pushover_token:-${PUSHOVER_TOKEN:-}}"
+export TF_VAR_sendgrid_api_key="${TF_VAR_sendgrid_api_key:-${SENDGRID_API_KEY:-}}"
+export TF_VAR_sendgrid_sender_email="${TF_VAR_sendgrid_sender_email:-${SENDGRID_SENDER_EMAIL:-}}"
+export TF_VAR_sendgrid_recipient_email="${TF_VAR_sendgrid_recipient_email:-${SENDGRID_RECIPIENT_EMAIL:-${RECIPIENT_EMAIL:-}}}"
+
 GCP_PROJECT_ID=${GCP_PROJECT_ID:-${GOOGLE_CLOUD_PROJECT:-}}
-GCP_REGION=${GCP_REGION:-us-central1}
+GCP_REGION=${GCP_REGION:-europe-west1}
 CONTAINER_PLATFORM=${CONTAINER_PLATFORM:-linux/amd64}
 NEXT_PRIVATE_BUILD_WORKER_COUNT=${NEXT_PRIVATE_BUILD_WORKER_COUNT:-1}
 
@@ -15,7 +39,7 @@ fi
 
 echo "Deploying ${PROJECT_NAME} to ${ENVIRONMENT} on GCP..."
 
-cd "$(dirname "$0")/.."
+cd "$REPO_ROOT"
 
 STATE_BUCKET="${GCP_PROJECT_ID}-${PROJECT_NAME}-terraform-state"
 if gcloud storage buckets describe "gs://${STATE_BUCKET}" >/dev/null 2>&1; then
@@ -73,9 +97,12 @@ terraform apply \
   -auto-approve
 
 API_URL=$(terraform output -raw cloud_run_url)
-FRONTEND_BUCKET=$(terraform output -raw frontend_bucket)
+FRONTEND_BUCKET=$(terraform output -raw frontend_bucket 2>/dev/null || echo "")
 FRONTEND_URL=$(terraform output -raw frontend_url)
 MEMORY_BUCKET=$(terraform output -raw memory_bucket)
+FIREBASE_SITE_ID=$(terraform output -raw firebase_site_id 2>/dev/null || echo "")
+FIREBASE_URL=$(terraform output -raw firebase_url 2>/dev/null || echo "")
+LEGACY_FRONTEND_URL=$(terraform output -raw legacy_frontend_url 2>/dev/null || echo "")
 
 if [ -z "$API_URL" ]; then
   API_URL=$(gcloud run services describe "${SERVICE_NAME}" \
@@ -109,22 +136,59 @@ echo "NEXT_PUBLIC_API_URL=${API_URL}" > .env.production
 npm install --no-audit --fund=false
 NEXT_PRIVATE_BUILD_WORKER_COUNT="${NEXT_PRIVATE_BUILD_WORKER_COUNT}" npm run build
 
-for attempt in 1 2 3; do
-  if gcloud storage rsync --recursive --delete-unmatched-destination-objects ./out "gs://${FRONTEND_BUCKET}"; then
-    break
-  fi
+if [ -n "$FRONTEND_BUCKET" ]; then
+  for attempt in 1 2 3; do
+    if gcloud storage rsync --recursive --delete-unmatched-destination-objects ./out "gs://${FRONTEND_BUCKET}"; then
+      break
+    fi
 
-  if [ "$attempt" = "3" ]; then
-    echo "Frontend sync failed after ${attempt} attempts."
-    exit 1
-  fi
+    if [ "$attempt" = "3" ]; then
+      echo "Frontend sync to legacy GCS bucket failed after ${attempt} attempts."
+      exit 1
+    fi
 
-  echo "Frontend sync failed, retrying in 10 seconds..."
-  read -r -t 10 _ || true
-done
+    echo "Frontend sync failed, retrying in 10 seconds..."
+    read -r -t 10 _ || true
+  done
+else
+  echo "Skipping legacy GCS frontend sync (frontend_bucket output is empty)."
+fi
+
+if [ -n "$FIREBASE_SITE_ID" ]; then
+  echo "Deploying frontend to Firebase Hosting site: ${FIREBASE_SITE_ID}"
+
+  cat > .firebaserc <<EOF
+{
+  "projects": {
+    "default": "${GCP_PROJECT_ID}"
+  },
+  "targets": {
+    "${GCP_PROJECT_ID}": {
+      "hosting": {
+        "default": ["${FIREBASE_SITE_ID}"]
+      }
+    }
+  }
+}
+EOF
+
+  npx --yes firebase-tools@latest deploy \
+    --project "${GCP_PROJECT_ID}" \
+    --only "hosting:default" \
+    --non-interactive
+else
+  echo "Skipping Firebase Hosting deploy (firebase_site_id output is empty)."
+fi
 
 echo ""
 echo "GCP deployment complete"
-echo "Frontend URL: ${FRONTEND_URL}"
+if [ -n "$FIREBASE_URL" ]; then
+  echo "Frontend URL: ${FIREBASE_URL}"
+fi
+if [ -n "$LEGACY_FRONTEND_URL" ]; then
+  echo "Legacy frontend URL: ${LEGACY_FRONTEND_URL}"
+fi
 echo "Cloud Run API: ${API_URL}"
-echo "Frontend bucket: ${FRONTEND_BUCKET}"
+if [ -n "$FRONTEND_BUCKET" ]; then
+  echo "Frontend bucket (legacy): ${FRONTEND_BUCKET}"
+fi

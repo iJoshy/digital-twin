@@ -14,13 +14,32 @@ output "cloud_run_url" {
 }
 
 output "frontend_bucket" {
-  description = "Cloud Storage bucket for static frontend"
-  value       = google_storage_bucket.frontend.name
+  description = "Cloud Storage bucket for static frontend (legacy, may be empty when disabled)"
+  value       = var.keep_legacy_frontend_bucket ? google_storage_bucket.frontend[0].name : ""
 }
 
 output "frontend_url" {
-  description = "Public static frontend URL"
-  value       = "https://${google_storage_bucket.frontend.name}.storage.googleapis.com/index.html"
+  description = "Public frontend URL"
+  value = (
+    var.enable_firebase_hosting
+    ? "https://${local.firebase_site_id}.web.app"
+    : (var.keep_legacy_frontend_bucket ? "https://${google_storage_bucket.frontend[0].name}.storage.googleapis.com/index.html" : "")
+  )
+}
+
+output "legacy_frontend_url" {
+  description = "Legacy GCS-hosted frontend URL (kept during migration)"
+  value       = var.keep_legacy_frontend_bucket ? "https://${google_storage_bucket.frontend[0].name}.storage.googleapis.com/index.html" : ""
+}
+
+output "firebase_site_id" {
+  description = "Firebase Hosting site ID"
+  value       = var.enable_firebase_hosting ? local.firebase_site_id : ""
+}
+
+output "firebase_url" {
+  description = "Firebase Hosting URL"
+  value       = var.enable_firebase_hosting ? "https://${local.firebase_site_id}.web.app" : ""
 }
 
 output "memory_bucket" {

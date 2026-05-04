@@ -9,7 +9,7 @@ A production-ready, full-stack AI Digital Twin that represents **Joshua Balogun*
 
 This project combines a modern Next.js frontend with a FastAPI backend powered by **AWS Bedrock** and deploys to AWS using **Lambda + API Gateway + S3 + CloudFront + Terraform**.
 
-Production URL: https://etcy-systems-prod-twin-dev-frontend.storage.googleapis.com/index.html
+Production URL: hhttps://joshua-digital-twin.web.app/
 
 <br />
 
@@ -133,8 +133,11 @@ twin/
 │   ├── output.tf
 │   └── prod.tfvars
 ├── scripts/
-│   ├── deploy.sh              # build + terraform apply + frontend publish
-│   └── destroy.sh             # teardown helper
+│   ├── deploy-aws.sh          # AWS deploy: build + terraform apply + frontend publish
+│   ├── destroy-aws.sh         # AWS teardown
+│   ├── deploy-gcp.sh          # GCP deploy: terraform apply + Cloud Run + Firebase Hosting
+│   ├── destroy-gcp.sh         # GCP teardown
+│   └── terraform-backend.sh   # shared S3 state bucket helper
 └── .env.example
 ```
 
@@ -251,7 +254,7 @@ Open `http://localhost:3000`.
 ### Deploy
 
 ```bash
-./scripts/deploy.sh prod twin
+./scripts/deploy-aws.sh prod twin
 ```
 
 This script will:
@@ -261,15 +264,23 @@ This script will:
 - Build static frontend export
 - Sync frontend build to S3
 
-### Deploy to GCP
-
-The GCP path runs in parallel with AWS and uses Cloud Run, Cloud Storage, Artifact Registry, and Vertex AI Gemini.
+### Destroy AWS environment
 
 ```bash
-export GCP_PROJECT_ID=your-gcp-project-id
-export GCP_REGION=us-central1
+./scripts/destroy-aws.sh prod twin
+```
+
+### Deploy to GCP
+
+The GCP path runs in parallel with AWS and uses Cloud Run, Firebase Hosting, Cloud Storage, Artifact Registry, and Vertex AI Gemini.
+
+```bash
 ./scripts/deploy-gcp.sh dev twin
 ```
+
+The script auto-loads `GCP_PROJECT_ID`, `GCP_REGION`, and the Pushover/SendGrid secrets from `.env` at the repo root, so no extra exports are required locally.
+
+After a successful deploy, the frontend is served from Firebase Hosting at `https://<firebase_site_id>.web.app` (configurable per environment via `firebase_site_id` in `terraform-gcp/<env>.tfvars`). The legacy GCS-hosted URL is kept while `keep_legacy_frontend_bucket = true`, allowing zero-downtime cutover.
 
 For GitHub Actions, use the `Deploy Digital Twin GCP` workflow and configure environment-scoped secrets:
 
@@ -282,10 +293,16 @@ For GitHub Actions, use the `Deploy Digital Twin GCP` workflow and configure env
 - `SENDGRID_SENDER_EMAIL`
 - `SENDGRID_RECIPIENT_EMAIL`
 
-### Destroy environment
+The deploy service account also needs the following one-time GCP IAM roles to manage Firebase Hosting:
+
+- `roles/firebase.admin` (only required the first time the project is enabled for Firebase)
+- `roles/firebasehosting.admin`
+- `roles/serviceusage.serviceUsageConsumer`
+
+### Destroy GCP environment
 
 ```bash
-./scripts/destroy.sh prod twin
+./scripts/destroy-gcp.sh dev twin
 ```
 
 ## Social Links

@@ -1,0 +1,67 @@
+name: Destroy Digital Twin GCP
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Environment to destroy"
+        required: true
+        type: choice
+        options:
+          - dev
+          - test
+          - prod
+      confirm:
+        description: "Type the environment name to confirm destruction"
+        required: true
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  destroy:
+    name: Destroy GCP ${{ github.event.inputs.environment }}
+    runs-on: ubuntu-latest
+    environment: gcp-${{ github.event.inputs.environment }}
+
+    steps:
+      - name: Verify confirmation
+        run: |
+          if [ "${{ github.event.inputs.confirm }}" != "${{ github.event.inputs.environment }}" ]; then
+            echo "Confirmation does not match environment name"
+            echo "You entered: '${{ github.event.inputs.confirm }}'"
+            echo "Expected:    '${{ github.event.inputs.environment }}'"
+            exit 1
+          fi
+          echo "Destruction confirmed for ${{ github.event.inputs.environment }}"
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Set up Google Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_wrapper: false
+
+      - name: Destroy GCP environment
+        run: |
+          chmod +x scripts/destroy-gcp.sh
+          ./scripts/destroy-gcp.sh ${{ github.event.inputs.environment }} twin
+        env:
+          GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+          GCP_REGION: ${{ vars.GCP_REGION }}
+          TF_VAR_pushover_user: ${{ secrets.PUSHOVER_USER }}
+          TF_VAR_pushover_token: ${{ secrets.PUSHOVER_TOKEN }}
+          TF_VAR_sendgrid_api_key: ${{ secrets.SENDGRID_API_KEY }}
+          TF_VAR_sendgrid_sender_email: ${{ secrets.SENDGRID_SENDER_EMAIL }}
+          TF_VAR_sendgrid_recipient_email: ${{ secrets.SENDGRID_RECIPIENT_EMAIL }}

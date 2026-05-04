@@ -1,8 +1,12 @@
 locals {
-  name_prefix     = "${var.project_name}-${var.environment}"
-  frontend_bucket = "${var.project_id}-${local.name_prefix}-frontend"
-  memory_bucket   = "${var.project_id}-${local.name_prefix}-memory"
-  service_name    = "${local.name_prefix}-api"
+  name_prefix      = "${var.project_name}-${var.environment}"
+  frontend_bucket  = "${var.project_id}-${local.name_prefix}-frontend"
+  memory_bucket    = "${var.project_id}-${local.name_prefix}-memory"
+  service_name     = "${local.name_prefix}-api"
+  firebase_site_id = var.firebase_site_id != "" ? var.firebase_site_id : local.name_prefix
+  firebase_origins = var.enable_firebase_hosting ? "https://${local.firebase_site_id}.web.app,https://${local.firebase_site_id}.firebaseapp.com" : ""
+  legacy_origins   = "https://storage.googleapis.com,https://${local.frontend_bucket}.storage.googleapis.com"
+  cors_origins     = trim(join(",", compact([local.legacy_origins, local.firebase_origins])), ",")
   labels = {
     project     = var.project_name
     environment = var.environment
@@ -11,16 +15,39 @@ locals {
 }
 
 resource "google_project_service" "required" {
-  for_each = toset([
-    "aiplatform.googleapis.com",
-    "artifactregistry.googleapis.com",
-    "iam.googleapis.com",
-    "run.googleapis.com",
-  ])
+  for_each = toset(concat(
+    [
+      "aiplatform.googleapis.com",
+      "artifactregistry.googleapis.com",
+      "iam.googleapis.com",
+      "run.googleapis.com",
+    ],
+    var.enable_firebase_hosting ? [
+      "firebase.googleapis.com",
+      "firebasehosting.googleapis.com",
+    ] : []
+  ))
 
   project            = var.project_id
   service            = each.value
   disable_on_destroy = false
+}
+
+resource "google_firebase_project" "this" {
+  count    = var.enable_firebase_hosting ? 1 : 0
+  provider = google-beta
+  project  = var.project_id
+
+  depends_on = [google_project_service.required]
+}
+
+resource "google_firebase_hosting_site" "this" {
+  count    = var.enable_firebase_hosting ? 1 : 0
+  provider = google-beta
+  project  = var.project_id
+  site_id  = local.firebase_site_id
+
+  depends_on = [google_firebase_project.this]
 }
 
 resource "google_artifact_registry_repository" "backend" {
@@ -34,8 +61,9 @@ resource "google_artifact_registry_repository" "backend" {
 }
 
 resource "google_storage_bucket" "frontend" {
+  count                       = var.keep_legacy_frontend_bucket ? 1 : 0
   name                        = local.frontend_bucket
-  location                    = "US"
+  location                    = var.region
   uniform_bucket_level_access = true
   force_destroy               = true
   labels                      = local.labels
@@ -44,6 +72,11 @@ resource "google_storage_bucket" "frontend" {
     main_page_suffix = "index.html"
     not_found_page   = "404.html"
   }
+}
+
+moved {
+  from = google_storage_bucket.frontend
+  to   = google_storage_bucket.frontend[0]
 }
 
 resource "google_storage_bucket" "memory" {
@@ -55,9 +88,15 @@ resource "google_storage_bucket" "memory" {
 }
 
 resource "google_storage_bucket_iam_member" "frontend_public_read" {
-  bucket = google_storage_bucket.frontend.name
+  count  = var.keep_legacy_frontend_bucket ? 1 : 0
+  bucket = google_storage_bucket.frontend[0].name
   role   = "roles/storage.objectViewer"
   member = "allUsers"
+}
+
+moved {
+  from = google_storage_bucket_iam_member.frontend_public_read
+  to   = google_storage_bucket_iam_member.frontend_public_read[0]
 }
 
 resource "google_service_account" "cloud_run" {
@@ -131,7 +170,7 @@ resource "google_cloud_run_v2_service" "api" {
       }
       env {
         name  = "CORS_ORIGINS"
-        value = "https://storage.googleapis.com,https://${google_storage_bucket.frontend.name}.storage.googleapis.com"
+        value = local.cors_origins
       }
       env {
         name  = "PUSHOVER_USER"

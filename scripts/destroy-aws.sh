@@ -29,6 +29,7 @@ ensure_terraform_state_bucket "$STATE_BUCKET" "$AWS_REGION"
 # Initialize terraform with S3 backend
 echo "🔧 Initializing Terraform with S3 backend..."
 terraform init -input=false \
+  -reconfigure \
   -backend-config="bucket=${STATE_BUCKET}" \
   -backend-config="key=${ENVIRONMENT}/terraform.tfstate" \
   -backend-config="region=${AWS_REGION}" \

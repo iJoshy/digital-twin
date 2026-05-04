@@ -39,3 +39,9 @@ Thumbs.db
 
 # AWS
 .aws/
+
+# Firebase (generated at deploy time)
+frontend/.firebaserc
+.firebase/
+firebase-debug.log
+firestore-debug.log

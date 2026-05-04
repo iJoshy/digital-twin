@@ -1,6 +1,9 @@
-project_name     = "twin"
-environment      = "dev"
-region           = "us-central1"
-gemini_model_id  = "gemini-2.5-flash-lite"
-cloud_run_cpu    = "1"
-cloud_run_memory = "512Mi"
+project_name                = "twin"
+environment                 = "dev"
+region                      = "europe-west1"
+gemini_model_id             = "gemini-2.5-flash-lite"
+cloud_run_cpu               = "1"
+cloud_run_memory            = "512Mi"
+firebase_site_id            = "joshua-digital-twin"
+enable_firebase_hosting     = true
+keep_legacy_frontend_bucket = false

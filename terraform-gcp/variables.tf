@@ -23,7 +23,7 @@ variable "environment" {
 variable "region" {
   description = "GCP region for Cloud Run and Vertex AI"
   type        = string
-  default     = "us-central1"
+  default     = "europe-west1"
 }
 
 variable "backend_image" {
@@ -47,6 +47,24 @@ variable "cloud_run_memory" {
   description = "Cloud Run memory limit"
   type        = string
   default     = "512Mi"
+}
+
+variable "firebase_site_id" {
+  description = "Firebase Hosting site ID. Defaults to <project_name>-<environment> if empty."
+  type        = string
+  default     = ""
+}
+
+variable "enable_firebase_hosting" {
+  description = "Provision Firebase Hosting alongside the existing GCS frontend bucket."
+  type        = bool
+  default     = false
+}
+
+variable "keep_legacy_frontend_bucket" {
+  description = "Keep the legacy public GCS frontend bucket. Set to false once Firebase Hosting is verified."
+  type        = bool
+  default     = true
 }
 
 variable "pushover_user" {
